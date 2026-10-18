@@ -181,6 +181,7 @@
         <a href="#about">Về shop</a>
         <a href="#contact">Liên hệ</a>
         <a class="btn btn-primary" id="navContact" href="#contact">Ghé shop ↗</a>
+        <button class="btn btn-soft" id="adminOpenTop" type="button">⚙ Quản lý</button>
       </nav>
     </div>
   </header>
@@ -251,9 +252,47 @@
         <a id="footerFacebook" href="#contact">Facebook</a>
         <a id="footerTikTok" href="#contact">TikTok</a>
         <a href="#home">Lên đầu trang ↑</a>
+        <button class="btn btn-soft" id="adminOpen" type="button">Quản trị shop</button>
       </div>
     </div>
   </footer>
+
+
+  <div id="adminModal" class="admin-modal" hidden>
+    <div class="admin-card" role="dialog" aria-modal="true" aria-labelledby="adminTitle">
+      <button type="button" class="admin-close" id="adminClose" aria-label="Đóng">×</button>
+      <h2 id="adminTitle">Quản trị CO.ACH AUTHENTIC</h2>
+      <p class="admin-help">Chỉ tài khoản chủ shop được thêm hoặc xóa sản phẩm. Quyền được kiểm tra thêm bởi Firebase Rules.</p>
+      <form id="adminLoginForm">
+        <label>Email chủ shop<input id="adminEmail" type="email" autocomplete="username" required placeholder="Email đăng nhập Firebase"></label>
+        <label>Mật khẩu<input id="adminPassword" type="password" autocomplete="current-password" required placeholder="Mật khẩu Firebase"></label>
+        <button class="btn btn-primary" type="submit">Đăng nhập</button>
+        <button class="btn btn-soft" id="resetPasswordBtn" type="button" style="width:100%;margin-top:10px">Quên mật khẩu?</button>
+      </form>
+      <div id="adminWork" hidden>
+        <p id="adminStatus" class="admin-status" role="status"></p>
+        <form id="productForm">
+          <label>Tên sản phẩm<input id="pName" required maxlength="100" placeholder="Ví dụ: Túi Coach Rowan"></label>
+          <label>Danh mục<select id="pCategory"><option value="bags">Túi xách</option><option value="clothes">Quần áo</option><option value="accessories">Phụ kiện</option></select></label>
+          <label>Giá bán (VNĐ)<input id="pPrice" type="number" min="0" step="1000" required placeholder="100000"></label>
+          <label>Giá cũ (không bắt buộc)<input id="pOldPrice" type="number" min="0" step="1000" placeholder="0"></label>
+          <label>Nhãn sản phẩm<input id="pTag" maxlength="30" placeholder="MỚI"></label>
+          <label>Đường dẫn ảnh<input id="pImage" required placeholder="anh.jpg hoặc https://..."></label>
+          <button class="btn btn-primary" type="submit">＋ Đăng sản phẩm</button>
+        </form>
+        <h3 style="margin:20px 0 8px;color:#b94e79">Sản phẩm đang đăng</h3>
+        <div id="adminProductList" class="admin-product-list"><p class="admin-status">Đang tải danh sách sản phẩm…</p></div>
+        <button class="btn btn-soft" id="adminLogout" type="button">Đăng xuất</button>
+      </div>
+      <p id="adminMessage" class="admin-status" role="status"></p>
+    </div>
+  </div>
+  <style>
+    .admin-modal{position:fixed;inset:0;z-index:1000;background:rgba(52,30,42,.48);display:grid;place-items:center;padding:18px;overflow:auto}
+    .admin-modal[hidden]{display:none!important}.admin-card{position:relative;background:#fffafd;border:1px solid #f1dce5;border-radius:22px;padding:26px;width:min(100%,480px);max-height:92vh;overflow:auto;box-shadow:0 22px 70px rgba(80,30,55,.25)}
+    .admin-card h2{font-size:23px;margin:0 30px 8px 0;color:#b94e79}.admin-help{font-size:13px;line-height:1.6;color:#816d77}.admin-close{position:absolute;right:15px;top:10px;border:0;background:#ffe4ee;border-radius:50%;width:36px;height:36px;font-size:25px;cursor:pointer;color:#b94e79}
+    .admin-card form{display:grid;gap:12px;margin:16px 0}.admin-product-list{display:grid;gap:8px}.admin-product-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:1px solid #f1dce5;border-radius:12px;background:white}.admin-product-row strong{font-size:13px}.admin-product-row small{display:block;color:#816d77;margin-top:3px}.admin-product-row button{flex-shrink:0}.admin-card label{display:grid;gap:6px;font-size:13px;font-weight:700;color:#684957}.admin-card input,.admin-card select{width:100%;border:1px solid #ead3de;border-radius:11px;padding:11px;background:white;min-width:0}.admin-status{font-size:13px;line-height:1.6;color:#8a3d60;overflow-wrap:anywhere}.admin-delete{border:0;border-radius:9px;padding:7px 10px;background:#ffe4ee;color:#9d315c;cursor:pointer;margin-top:8px;font-weight:700}
+  </style>
 
   <button class="music-toggle" id="musicToggle" type="button">🎵 Bật nhạc chill</button>
   <a class="floating-contact" id="floatingContact" href="#contact">♡ Chat với shop</a>
@@ -435,5 +474,112 @@
     });
     initShop();
   </script>
+
+  <!-- Firebase: cửa hàng dùng Firestore để đồng bộ sản phẩm và Firebase Authentication để đăng nhập chủ shop. -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBNi1MFMC0lg4rOG18TQA94o9izwF7Rulg",
+      authDomain: "tntkzz.firebaseapp.com",
+      databaseURL: "https://tntkzz-default-rtdb.firebaseio.com",
+      projectId: "tntkzz",
+      storageBucket: "tntkzz.firebasestorage.app",
+      messagingSenderId: "262323372720",
+      appId: "1:262323372720:web:6969d9d530ec11b6cf7175",
+      measurementId: "G-VJ6MWQ2JTY"
+    };
+    const OWNER_UID = "e4Mf0BfWnVcvAQMjDxDAqoiSW293";
+    const categoryNames = {bags:"Túi xách", clothes:"Quần áo", accessories:"Phụ kiện"};
+    const modal = document.getElementById("adminModal");
+    const loginForm = document.getElementById("adminLoginForm");
+    const work = document.getElementById("adminWork");
+    const message = document.getElementById("adminMessage");
+    const status = document.getElementById("adminStatus");
+    let auth, db, productsUnsubscribe = null, signedInOwner = false;
+    const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    const money = value => new Intl.NumberFormat("vi-VN", {style:"currency",currency:"VND",maximumFractionDigits:0}).format(Number(value)||0);
+    function showMessage(text, isError=false){ message.textContent=text; message.style.color=isError ? "#b4234d" : "#8a3d60"; }
+    function safeImage(url){ return /^(https?:\/\/|\.\.?\/|[^:]+\.(png|jpe?g|webp|gif)(\?.*)?$)/i.test(String(url||"")); }
+
+    function renderCloudProducts(items){
+      const list=document.getElementById("adminProductList");
+      if(list){
+        list.innerHTML=items.length ? items.map(p=>`<div class="admin-product-row"><div><strong>${esc(p.name||"Sản phẩm")}</strong><small>${money(p.price)}</small></div><button class="admin-delete" type="button" data-admin-delete="${esc(p.id)}">Xóa</button></div>`).join("") : '<p class="admin-status">Chưa có sản phẩm nào trên Firebase.</p>';
+        list.querySelectorAll("[data-admin-delete]").forEach(btn=>btn.addEventListener("click",async()=>{
+          if(!signedInOwner){showMessage("Hãy đăng nhập tài khoản chủ shop trước.",true);return;}
+          const target=items.find(x=>x.id===btn.dataset.adminDelete);
+          if(!target || !confirm(`Xóa “${target.name||"sản phẩm này"}” khỏi shop?`)) return;
+          try{await deleteDoc(doc(db,"products",btn.dataset.adminDelete));status.textContent="Đã xóa sản phẩm.";}
+          catch(e){status.textContent="Không xóa được: "+e.message;}
+        }));
+      }
+      const grid=document.getElementById("productGrid");
+      if(!items.length){ grid.innerHTML='<p style="grid-column:1/-1;color:#816d77">Shop đang cập nhật sản phẩm mới. Bạn quay lại sau nhé ♡</p>'; return; }
+      grid.innerHTML=items.map(p=>{
+        const img=safeImage(p.image)?p.image:"";
+        return `<article class="product"><div class="product-image">${img?`<img src="${esc(img)}" alt="${esc(p.name)}" loading="lazy" onerror="this.style.display='none'">`:''}<span class="tag">${esc(p.tag||"SẢN PHẨM")}</span></div><div class="product-info"><div class="category">${esc(p.categoryName||categoryNames[p.category]||"Sản phẩm")}</div><h3>${esc(p.name)}</h3><div class="price-row"><div><div class="price">${money(p.price)}</div>${Number(p.oldPrice)>0?`<div class="old-price">${money(p.oldPrice)}</div>`:""}</div><button class="buy-small" aria-label="Hỏi mua ${esc(p.name)}" data-cloud-buy="${esc(p.id)}">↗</button></div>${signedInOwner?`<button class="admin-delete" data-delete="${esc(p.id)}">Xóa sản phẩm</button>`:""}</div></article>`;
+      }).join("");
+      grid.querySelectorAll("[data-cloud-buy]").forEach(btn=>btn.addEventListener("click",()=>{const p=items.find(x=>x.id===btn.dataset.cloudBuy);const url=shopConfig.facebookMessengerLink;if(url)window.open(url,"_blank","noopener,noreferrer");else document.getElementById("contact").scrollIntoView({behavior:"smooth"});}));
+      grid.querySelectorAll("[data-delete]").forEach(btn=>btn.addEventListener("click",async()=>{
+        if(!signedInOwner || !confirm("Xóa sản phẩm này khỏi cửa hàng?")) return;
+        try{await deleteDoc(doc(db,"products",btn.dataset.delete));status.textContent="Đã gửi yêu cầu xóa sản phẩm.";}catch(e){status.textContent="Không xóa được: "+e.message;}
+      }));
+    }
+    try {
+      const app=initializeApp(firebaseConfig); auth=getAuth(app); db=getFirestore(app);
+      onSnapshot(collection(db,"products"), snap=>{
+        const items=snap.docs.map(d=>({id:d.id,...d.data()}));
+        renderCloudProducts(items);
+      }, err=>{
+        console.error("Firestore products:",err);
+        showMessage("Không tải được sản phẩm Firebase. Kiểm tra Firestore Rules đã xuất bản chưa và collection products đã tạo chưa.",true);
+      });
+      onAuthStateChanged(auth,user=>{
+        signedInOwner=!!user && user.uid===OWNER_UID;
+        loginForm.hidden=signedInOwner;
+        work.hidden=!signedInOwner;
+        if(user && !signedInOwner) showMessage("Tài khoản này không phải chủ shop. Hãy đăng xuất và dùng tài khoản chủ.",true);
+        else if(signedInOwner) { showMessage("Đã đăng nhập tài khoản chủ shop."); status.textContent="Bạn có thể đăng sản phẩm mới bên dưới."; }
+        // refresh cards so the delete buttons are only rendered for the owner
+        if(db) onSnapshot(collection(db,"products"),snap=>renderCloudProducts(snap.docs.map(d=>({id:d.id,...d.data()}))));
+      });
+    } catch(e) { console.error(e); showMessage("Không khởi tạo được Firebase: "+e.message,true); }
+
+    const openAdmin=()=>{modal.hidden=false;showMessage("");};
+    document.getElementById("adminOpen").addEventListener("click",openAdmin);
+    document.getElementById("adminOpenTop").addEventListener("click",openAdmin);
+    document.getElementById("adminClose").addEventListener("click",()=>modal.hidden=true);
+    modal.addEventListener("click",e=>{if(e.target===modal)modal.hidden=true;});
+    loginForm.addEventListener("submit",async e=>{
+      e.preventDefault();
+      try{await signInWithEmailAndPassword(auth,document.getElementById("adminEmail").value.trim(),document.getElementById("adminPassword").value);showMessage("Đăng nhập thành công.");}
+      catch(err){showMessage("Đăng nhập thất bại. Kiểm tra email/mật khẩu và mục Authentication → Email/Password. "+err.message,true);}
+    });
+    document.getElementById("resetPasswordBtn").addEventListener("click",async()=>{
+      const email=document.getElementById("adminEmail").value.trim();
+      if(!email){showMessage("Nhập email chủ shop vào ô Email trước, rồi nhấn Quên mật khẩu?",true);document.getElementById("adminEmail").focus();return;}
+      try{
+        await sendPasswordResetEmail(auth,email);
+        showMessage("Đã gửi email đặt lại mật khẩu nếu địa chỉ này thuộc tài khoản hợp lệ. Hãy kiểm tra Hộp thư đến và Spam/Junk.");
+      }catch(err){
+        console.error("Password reset:",err);
+        const friendly=err.code==="auth/invalid-email"?"Địa chỉ email chưa đúng định dạng.":err.code==="auth/too-many-requests"?"Đã thử quá nhiều lần. Hãy đợi một lúc rồi thử lại.":"Chưa gửi được email đặt lại mật khẩu. Hãy kiểm tra kết nối và cấu hình Authentication trong Firebase.";
+        showMessage(friendly,true);
+      }
+    });
+    document.getElementById("adminLogout").addEventListener("click",async()=>{try{await signOut(auth);showMessage("Đã đăng xuất.");}catch(e){showMessage(e.message,true);}});
+    document.getElementById("productForm").addEventListener("submit",async e=>{
+      e.preventDefault(); if(!signedInOwner){showMessage("Bạn cần đăng nhập bằng tài khoản chủ shop.",true);return;}
+      const category=document.getElementById("pCategory").value;
+      const data={name:document.getElementById("pName").value.trim(),category,categoryName:categoryNames[category],price:Number(document.getElementById("pPrice").value),oldPrice:Number(document.getElementById("pOldPrice").value)||0,tag:document.getElementById("pTag").value.trim()||"MỚI",image:document.getElementById("pImage").value.trim(),createdAt:serverTimestamp()};
+      if(!data.name || !data.image || !Number.isFinite(data.price)||data.price<0){status.textContent="Vui lòng nhập tên, ảnh và giá hợp lệ.";return;}
+      try{await addDoc(collection(db,"products"),data);e.target.reset();status.textContent="Đăng sản phẩm thành công!";}
+      catch(err){status.textContent="Không đăng được sản phẩm. Kiểm tra Rules và UID chủ shop: "+err.message;}
+    });
+  </script>
+
 </body>
 </html>
